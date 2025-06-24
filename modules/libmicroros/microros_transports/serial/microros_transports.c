@@ -59,7 +59,7 @@ bool zephyr_transport_open(struct uxrCustomTransport * transport){
         return false;
     }
 
-    ring_buf_init(&in_ringbuf, sizeof(uart_in_buffer), uart_out_buffer);
+    ring_buf_init(&in_ringbuf, sizeof(uart_in_buffer), uart_in_buffer);
 
     uart_irq_callback_set(params->uart_dev, uart_fifo_callback);
 
