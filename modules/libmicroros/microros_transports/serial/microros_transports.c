@@ -69,11 +69,23 @@ bool zephyr_transport_open(struct uxrCustomTransport * transport){
     return true;
 }
 
-bool zephyr_transport_close(struct uxrCustomTransport * transport){
-    (void) transport;
-    // TODO: close serial transport here
+bool zephyr_transport_close(struct uxrCustomTransport *transport)
+{
+    zephyr_transport_params_t *p = (zephyr_transport_params_t *)transport->args;
+    const struct device *uart = p->uart_dev;
+
+    if (!uart)
+        return false;
+
+    uart_irq_rx_disable(uart);
+    uart_irq_tx_disable(uart);
+    uart_irq_callback_set(uart, NULL);
+
+    ring_buf_reset(&in_ringbuf);
+    p->uart_dev = NULL;
     return true;
 }
+
 
 size_t zephyr_transport_write(struct uxrCustomTransport* transport, const uint8_t * buf, size_t len, uint8_t * err){
     zephyr_transport_params_t * params = (zephyr_transport_params_t*) transport->args;
