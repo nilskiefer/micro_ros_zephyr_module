@@ -87,16 +87,26 @@ bool zephyr_transport_close(struct uxrCustomTransport *transport)
 }
 
 
-size_t zephyr_transport_write(struct uxrCustomTransport* transport, const uint8_t * buf, size_t len, uint8_t * err){
-    zephyr_transport_params_t * params = (zephyr_transport_params_t*) transport->args;
+size_t zephyr_transport_write(struct uxrCustomTransport *transport,
+                              const uint8_t *buf,
+                              size_t len,
+                              uint8_t *err)
+{
+    zephyr_transport_params_t *params =
+        (zephyr_transport_params_t *)transport->args;
+    const struct device *uart = params->uart_dev;
 
-    for (size_t i = 0; i < len; i++)
-    {
-        uart_poll_out(params->uart_dev, buf[i]);
+    size_t sent = 0;
+    while (sent < len) {
+        size_t n = uart_fifo_fill(uart, buf + sent, len - sent);
+        sent += n;
+        if (n == 0) {
+            k_yield();
+        }
     }
-
-    return len;
+    return sent;
 }
+
 
 size_t zephyr_transport_read(struct uxrCustomTransport* transport, uint8_t* buf, size_t len, int timeout, uint8_t* err){
     zephyr_transport_params_t * params = (zephyr_transport_params_t*) transport->args;
