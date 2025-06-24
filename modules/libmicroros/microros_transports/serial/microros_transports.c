@@ -33,21 +33,27 @@ struct ring_buf out_ringbuf, in_ringbuf;
 
 // --- micro-ROS Serial Transport for Zephyr ---
 
-static void uart_fifo_callback(const struct device * dev, void * args){
-    while (uart_irq_update(dev) && uart_irq_is_pending(dev)) {
-        if (uart_irq_rx_ready(dev)) {
-            int recv_len;
-            char buffer[64];
-            size_t len = MIN(ring_buf_space_get(&in_ringbuf), sizeof(buffer));
+static void uart_fifo_callback(const struct device *dev, void *args)
+{
+    ARG_UNUSED(args);
 
-            if (len > 0){
-                recv_len = uart_fifo_read(dev, buffer, len);
-                ring_buf_put(&in_ringbuf, buffer, recv_len);
-            }
+    while (uart_irq_update(dev) && uart_irq_rx_ready(dev)) {
 
+        uint8_t *dst;
+        uint32_t space = ring_buf_put_claim(&in_ringbuf, &dst,
+                                            ring_buf_space_get(&in_ringbuf));
+
+        if (space == 0) {            /* ring buffer full – drop one byte */
+            uint8_t drop;
+            uart_fifo_read(dev, &drop, 1);
+            continue;
         }
+
+        int rx = uart_fifo_read(dev, dst, space);
+        ring_buf_put_finish(&in_ringbuf, rx);
     }
 }
+
 
 
 bool zephyr_transport_open(struct uxrCustomTransport * transport){
