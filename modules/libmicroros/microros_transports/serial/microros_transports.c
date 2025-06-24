@@ -114,20 +114,29 @@ size_t zephyr_transport_write(struct uxrCustomTransport *transport,
 }
 
 
-size_t zephyr_transport_read(struct uxrCustomTransport* transport, uint8_t* buf, size_t len, int timeout, uint8_t* err){
-    zephyr_transport_params_t * params = (zephyr_transport_params_t*) transport->args;
+size_t zephyr_transport_read(struct uxrCustomTransport *transport,
+                             uint8_t *buf,
+                             size_t len,
+                             int timeout,          /* ms, <0 = wait forever */
+                             uint8_t *err)
+{
+    zephyr_transport_params_t *p = (zephyr_transport_params_t *)transport->args;
 
-    size_t read = 0;
-    int spent_time = 0;
+    const uint64_t deadline = (timeout < 0)
+                                ? UINT64_MAX
+                                : k_uptime_get() + (uint64_t)timeout;
 
-    while(ring_buf_is_empty(&in_ringbuf) && spent_time < timeout){
-        usleep(1000);
-        spent_time++;
-    }
+    size_t got = 0;
+    do {
+        uart_irq_rx_disable(p->uart_dev);
+        got = ring_buf_get(&in_ringbuf, buf, len);
+        uart_irq_rx_enable(p->uart_dev);
 
-    uart_irq_rx_disable(params->uart_dev);
-    read = ring_buf_get(&in_ringbuf, buf, len);
-    uart_irq_rx_enable(params->uart_dev);
+        if (got || k_uptime_get() >= deadline) {
+            break;                  /* read something or timed out */
+        }
+        k_msleep(1);                /* co-operative wait, no busy loop */
+    } while (true);
 
-    return read;
+    return got;
 }
